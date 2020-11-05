@@ -10,17 +10,24 @@ Dim FinalRow As Long
 Dim x As Integer
 
     'Gathering user input to know which year to parse
-    worksheetvalue = InputBox("Enter which year you would like to parse (2014, 2015, 2016): ", "Year selector", 2014)
-    While worksheetvalue <> 2014 And worksheetvalue <> 2015 And worksheetvalue <> 2016
-        worksheetvalue = InputBox("Enter in a correct year  (2014, 2015, 2016): ", "Year selector", 2014)
+    worksheetvalue = InputBox("Enter which year you would like to parse (all?): ", "Year selector", 2014)
+    While worksheetvalue <> "2014" And worksheetvalue <> "2015" And worksheetvalue <> "2016" And worksheetvalue <> "all"
+        worksheetvalue = InputBox("Enter in a correct year  (all)?: ", "Year selector", 2014)
     Wend
     
     'Initialization including no screenupdating, variable setting, formatting and headers, finding Finalrow
     Application.ScreenUpdating = False
+    Set wb = ActiveWorkbook
+    
+    'If user chooses "all", then I go to a separate view (line2)
+    If worksheetvalue = "all" Then
+        GoTo Line2
+    End If
+    
+    'Continuing setup
     highestVolume = 0
     highestChange = 0
     lowestChange = 0
-    Set wb = ActiveWorkbook
     Set ws = wb.Worksheets(worksheetvalue)
     ws.Activate
     ws.Range("H:Z").Clear
@@ -117,7 +124,135 @@ Dim x As Integer
     ws.Cells(4, 16).Value = lowestChangeTicker
     ws.Cells(4, 17).Value = lowestChange
     ws.Cells(4, 17).NumberFormat = "0.00%"
+    
+GoTo LastLine
+ 
+Line2:
 
+'Here's where it goes if user chooses all sheets. This loops through each worksheet, grabs the name, places in a list, then uses a for loop to loop through each _
+name in the list. The code will be able to parse through any amount of sheets now, while still allowing the user to choose a specific year above
 
-
+Dim wscount As Integer
+Dim wsname As String
+Dim wslists() As String
+Dim Z As Integer
+    Z = -1
+    wscount = wb.Worksheets.Count
+    ReDim wslists(wscount)
+    For Each ws In wb.Worksheets
+        Z = Z + 1
+        wslists(Z) = ws.Name
+    Next ws
+    
+    For i = 1 To wb.Worksheets.Count
+        highestVolume = 0
+        highestChange = 0
+        lowestChange = 0
+        
+        wsname = wslists(i - 1)
+        
+        Set ws = wb.Worksheets(wsname)
+        ws.Activate
+        ws.Range("H:Z").Clear
+        FinalRow = ws.Range("A1").End(xlDown).Row
+        x = 2
+        OpenPrice = ws.Cells(2, 3).Value
+        ws.Range("J:J").NumberFormat = "_($* #,##0.00_);_($* (#,##0.00);_($* ""-""??_);_(@_)"
+        ws.Range("K:K").NumberFormat = "0.00%"
+        ws.Cells(1, 9).Value = "Ticker"
+        ws.Cells(1, 9).Font.Bold = True
+        ws.Cells(1, 10).Value = "% price change"
+        ws.Cells(1, 10).Font.Bold = True
+        ws.Cells(1, 11).Value = "Price change %"
+        ws.Cells(1, 11).Font.Bold = True
+        ws.Cells(1, 12).Value = "Total Volume"
+        ws.Cells(1, 12).Font.Bold = True
+        
+        For j = 2 To FinalRow
+        
+            'setting ticker and summing volume
+            ticker = ws.Cells(j, 1).Value
+            Volume = Volume + ws.Cells(j, 7).Value
+            
+            'if the next ticker isn't the current ticker, need to paste current results and reset
+            If ws.Cells(j + 1, 1).Value <> ticker Then
+            
+                'this was just in case the endvalue was corrupted, it would simply take the last open value instead so we have something
+                If ws.Cells(j, 6).Value = 0 Then
+                    EndPrice = ws.Cells(j, 3).Value
+                Else
+                    EndPrice = ws.Cells(j, 6).Value
+                End If
+                
+                'Checking open price, as it's our comparison and if 0 we have an error, otherwise get the change percentage
+                If OpenPrice = 0 Then
+                    Change = 0
+                Else
+                    Change = (EndPrice - OpenPrice) / OpenPrice
+                End If
+                
+                'Insert all of our values now to the summary table
+                ws.Cells(x, 9).Value = ticker
+                ws.Cells(x, 10).Value = EndPrice - OpenPrice
+                
+                'quick check if percent is negative or positive, then respond with green or red fill
+                If ws.Cells(x, 10).Value >= 0 Then
+                    ws.Cells(x, 10).Interior.Color = vbGreen
+                Else
+                    ws.Cells(x, 10).Interior.Color = vbRed
+                End If
+                ws.Cells(x, 11).Value = Change
+                ws.Cells(x, 12).Value = Volume
+                
+                'adding 1 to our x variable, as we use this to keep going down a row for every new entry
+                x = x + 1
+                
+                'Bonus part, checking current values against global standing values for a new winner
+                If Volume > highestVolume Then
+                    highestVolume = Volume
+                    highestVolumeTicker = ticker
+                End If
+                If Change > highestChange Then
+                    highestChange = Change
+                    highestChangeTicker = ticker
+                End If
+                If Change < lowestChange Then
+                    lowestChange = Change
+                    lowestChangeTicker = ticker
+                End If
+                
+                'resetting OpenPrice to next row's value, resetting volume to 0
+                OpenPrice = ws.Cells(j + 1, 3).Value
+                Volume = 0
+            End If
+        Next j
+    
+        
+        'Bonus summary table entry, formatting, and headers
+    ws.Cells(1, 16).Value = "Ticker"
+    ws.Cells(1, 16).Font.Bold = True
+    ws.Cells(1, 17).Value = "Value"
+    ws.Cells(1, 17).Font.Bold = True
+    ws.Cells(2, 15).Value = "Highest Volume: "
+    ws.Cells(2, 15).Font.Bold = True
+    ws.Cells(2, 16).Value = highestVolumeTicker
+    ws.Cells(2, 17).Value = highestVolume
+    ws.Cells(3, 15).Value = "Greatest % Increase: "
+    ws.Cells(3, 15).Font.Bold = True
+    ws.Cells(3, 16).Value = highestChangeTicker
+    ws.Cells(3, 17).Value = highestChange
+    ws.Cells(3, 17).NumberFormat = "0.00%"
+    ws.Cells(4, 15).Value = "Lowest % Decrease: "
+    ws.Cells(4, 15).Font.Bold = True
+    ws.Cells(4, 16).Value = lowestChangeTicker
+    ws.Cells(4, 17).Value = lowestChange
+    ws.Cells(4, 17).NumberFormat = "0.00%"
+    
+    Next i
+    
+LastLine:
+    MsgBox ("Finished")
+    
+    
+    
 End Sub
